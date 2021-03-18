@@ -1,4 +1,4 @@
-# Assigment 1
+# Assignment 1
 
 ## Testo
 Esercizio con wireshark: analisi della banda usando fast.com (netflix)
