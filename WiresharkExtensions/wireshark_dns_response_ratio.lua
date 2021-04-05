@@ -56,7 +56,7 @@ local function gr_tap()
 			old_value = dns_queries[dns_query_name] or 0 -- read the old value      
 			dns_queries[dns_query_name] = old_value + 1  -- increase the number of queries observed for this DNS name
 
-		-- We count as queries done by us the packets with the response
+			-- We count as queries done by us the packets with the response
 			-- bit inside the flags set to 0.
 			if( dns_flags_response ~= nil) then
 			
@@ -85,7 +85,7 @@ local function gr_tap()
 		tw:append("Total answers: " .. answer_received .. "\n");
 		
 		if (queries_done > 0 and answer_received > 0) then
-    		tw:append("Ratio between queries sent and answers received is: " .. queries_done/answer_received .. "\n");
+			tw:append("Ratio between queries sent and answers received is: " .. queries_done/answer_received .. "\n");
 		end
 
 	end
