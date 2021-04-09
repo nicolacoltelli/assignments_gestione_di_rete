@@ -1,16 +1,3 @@
--- TODO
--- 1) try running script during capture
--- 2) ask for retap_packets()
--- 3) empty query (defaulted to root) one time gave us 6 in the
---	questions field in wireshark (dns.count.queries)
--- 4) Field Extractors when working with bits (we are able to treat
---	a bit as boolean, but what about 3 bits like dns error codes)
--- 5) Ask if a DNS packet can have a name but not flags and viceversa
---	(dns.qry.name != nil <=> dns.flags.response != nil)
--- 6) Even if we included 2 hostnames in dig command 2 separate queries are sent.
---	We think it's caused by the dns client implementation because we read on
---	the Internet that dns request with multiple queries are not really used. 
-
 --Per ciascun host riportare 
 
 --DNS
@@ -50,7 +37,7 @@ local function gr_tap()
 	local dns_answers_error = {}
 	local dns_answers_no_error = {}
 
-	local total_dns_packets = 0
+	local total_dns_hostnames = 0
 	--The cap is arbitrary, maybe should sort the dictionaries by occurrences then trim the lowest
 	local max_dns_packets = 500
 
@@ -72,27 +59,39 @@ local function gr_tap()
 		local dns_flags_response = f_dns_flags_response()
 		local dns_flags_rcode = f_dns_flags_rcode()
 
-		if(dns_query_name ~= nil and total_dns_packets<max_dns_packets) then
+		if(dns_query_name ~= nil) then
+
 			
-			local old_value
 			dns_query_name = getstring(dns_query_name) -- get the string returned by the query name
 
 			if( dns_flags_response ~= nil) then
-				if(dns_flags_response.value) then 
+				local old_value
+				--Check if it's a response (1 bit as a boolean)
+				if(dns_flags_response.value) then
 
-						old_value = dns_answers[dns_query_name] or 0 
-						dns_answers[dns_query_name] = old_value + 1
-						
-						if (dns_flags_rcode.value>0) then
-							old_value = dns_answers_error[dns_query_name] or 0
-							dns_answers_error[dns_query_name] = old_value + 1
-						else
-							old_value = dns_answers_no_error[dns_query_name] or 0
-							dns_answers_no_error[dns_query_name] = old_value + 1
-						end
+					if(dns_answers[dns_query_name] == nil) then
+						dns_answers[dns_query_name] = 0
+						-- total_dns_hostnames = total_dns_hostnames+1
+					end
+					
+					old_value = dns_answers[dns_query_name]
+					dns_answers[dns_query_name] = old_value + 1
+					
+					if (dns_flags_rcode.value>0) then
+						old_value = dns_answers_error[dns_query_name] or 0
+						dns_answers_error[dns_query_name] = old_value + 1
 					else
-						old_value = dns_queries[dns_query_name] or 0 -- read the old value      
-						dns_queries[dns_query_name] = old_value + 1  -- increase the number of queries observed for this DNS name
+						old_value = dns_answers_no_error[dns_query_name] or 0
+						dns_answers_no_error[dns_query_name] = old_value + 1
+					end
+				else
+					if(dns_queries[dns_query_name] == nil) then
+						dns_queries[dns_query_name] = 0
+						total_dns_hostnames = total_dns_hostnames+1
+					end
+					--old_value = dns_queries[dns_query_name] or 0 -- read the old value
+					old_value = dns_queries[dns_query_name]
+					dns_queries[dns_query_name] = old_value + 1  -- increase the number of queries observed for this DNS name
 				end
 				total_dns_packets = total_dns_packets + 1 
 			end
