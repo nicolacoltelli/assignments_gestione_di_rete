@@ -72,5 +72,5 @@ local function gr_tap()
 end
 
 -- Menu GR -> Packets
-register_menu("Gruppo9/HTTP", gr_tap, MENU_TOOLS_UNSORTED)
+register_menu("Gruppo9/HTTP response codes", gr_tap, MENU_TOOLS_UNSORTED)
 
