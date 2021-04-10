@@ -37,22 +37,25 @@ local function gr_tap()
    function tap.packet(pinfo,tvb)
       local http_response_c = f_http_code() -- Call the function that extracts the field
 
-      if(http_response ~= nil) then
+      if(http_response_c ~= nil) then
 		 
-		 if (http_response_c.value > 199 and http_response_c.value < 300) then
-			http_response_positive = http_response_positive + 1
-		 else if (http_response_c.value > 499 and http_response_c.value < 600) then
-			  http_response_negative = http_response_negative + 1
-			  end
-		 end    	 
+  		  if (http_response_c.value > 199 and http_response_c.value < 300) then
+  			   http_response_positive = http_response_positive + 1
+        end
+  		  if (http_response_c.value > 499 and http_response_c.value < 600) then
+  			  http_response_negative = http_response_negative + 1
+		    end    	 
       end
    end
 
    -- this function will be called once every few seconds to update our window
    function tap.draw(t)
-      tw:clear()
-	  tw:append(http_response_positive .. "\n")
-	  tw:append(http_response_negative .. "\n")
+        tw:clear()
+	     tw:append("Total positive responses: " .. http_response_positive .. "\n")
+	     tw:append("Total negative responses: " .. http_response_negative .. "\n")
+       if (http_response_positive ~= 0 and http_response_negative ~= 0) then
+          tw:append("Ratio: " .. (http_response_positive/http_response_negative) .. "\n")
+      end
    end
 
    -- this function will be called whenever a reset is needed
