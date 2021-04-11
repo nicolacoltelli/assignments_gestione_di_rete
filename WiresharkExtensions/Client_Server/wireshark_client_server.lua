@@ -50,7 +50,7 @@ local function gr_tap()
       local tcp_flags_ack = f_tcp_flags_ack()
 
       --Check if it's a tcp packet and contains an IP source (maybe we can't get src information a non-IP datagram)
-      if(tcp_flags ~= nil and ip_src.value ~= nil) then
+      if(tcp_flags ~= nil and ip_src ~= nil) then
         --Check if the SYN flag is 1 (if it isn't it's just a TCP segment of an already enstablished connection)
         if(tcp_flags_syn.value) then
           --If ACK is set to 1 then the src is the Server that sends the second segment of the 3 way handshake 
