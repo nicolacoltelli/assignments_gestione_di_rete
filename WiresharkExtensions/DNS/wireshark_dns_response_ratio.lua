@@ -28,20 +28,6 @@ end
 
 function desc(a,b) return (a > b) end
 
-function pairsByValues(t, f)
-   local a = {}
-   for n in pairs(t) do table.insert(a, n) end
-   table.sort(a, function(x, y) return f(t[x], t[y]) end)
-   local i = 0      -- iterator variable
-   local iter = function ()   -- iterator function
-	  i = i + 1
-	  if a[i] == nil then return nil
-	  else return a[i], t[a[i]]
-	  end
-   end
-   return iter
-end
-
 function trimDict(dict, func, limit)
 
 	-- Copy all dictionary keys into an array.
@@ -73,6 +59,7 @@ function trimDict(dict, func, limit)
 	end
 
 end
+
 
 local function gr_tap()
 
