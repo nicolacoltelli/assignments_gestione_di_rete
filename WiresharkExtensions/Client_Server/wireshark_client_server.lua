@@ -43,30 +43,28 @@ local function gr_tap()
 
    -- this function will be called once for each packet
    function tap.packet(pinfo,tvb)
+    -- Call all the function that extracts the fields
       local ip_src = f_ip_src()
-      local ip_dst = f_ip_dst()
-      local tcp_flags = f_tcp_flags()-- Call the function that extracts the field
+      local tcp_flags = f_tcp_flags()
       local tcp_flags_syn = f_tcp_flags_syn() 
       local tcp_flags_ack = f_tcp_flags_ack()
 
-      if(tcp_flags ~= nil and ip_src.value ~= nil and ip_dst.value ~= nil) then
+      --Check if it's a tcp packet and contains an IP source (maybe we can't get src information a non-IP datagram)
+      if(tcp_flags ~= nil and ip_src.value ~= nil) then
+        --Check if the SYN flag is 1 (if it isn't it's just a TCP segment of an already enstablished connection)
         if(tcp_flags_syn.value) then
+          --If ACK is set to 1 then the src is the Server that sends the second segment of the 3 way handshake 
           if(tcp_flags_ack.value) then
-            if(servers[ip_src.value] == nil) then
-              servers[ip_src.value]=true
+            if(servers[getstring(ip_src.value)] == nil) then
+              servers[getstring(ip_src.value)]=true
             end
-            if (clients[ip_dst.value] == nil) then
-              clients[ip_dst.value]=true
-            end
+          --Else is the client that starts the communication with just a SYN
           else
-            if(clients[ip_dst.value] == nil) then
-              clients[ip_dst.value]=true
-            end
-            if(servers[ip_src.value] == nil) then
-              servers[ip_src.value]=true
+            if (clients[getstring(ip_src.value)] == nil) then
+              clients[getstring(ip_src.value)]= true
             end
           end
-        end   
+        end 
       end
    end
 
