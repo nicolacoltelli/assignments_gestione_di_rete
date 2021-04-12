@@ -8,63 +8,60 @@
 local f_http_code = Field.new("http.response.code")
 
 local function getstring(finfo)
-   local ok, val = pcall(tostring, finfo)
-   if not ok then val = "(unknown)" end
-   return val
+  local ok, val = pcall(tostring, finfo)
+  if not ok then val = "(unknown)" end
+    return val
 end
 
 local function gr_tap()
    -- Declare the window we will use
-   local tw = TextWindow.new("HTTP Rapporto")
+  local tw = TextWindow.new("HTTP Rapporto")
    
    -- This will contain a hash of counters of appearances of a certain address
-   --local dns_queries = {}
-   local http_response = 0
-   local http_response_positive = 0
-   local http_response_negative = 0
+  local http_response = 0
+  local http_response_positive = 0
+  local http_response_negative = 0
    -- this is our tap
-   local tap = Listener.new();
+  local tap = Listener.new();
 
-   local function remove()
+  local function remove()
       -- this way we remove the listener that otherwise will remain running indefinitely
       tap:remove();
-   end
+  end
 
    -- we tell the window to call the remove() function when closed
-   tw:set_atclose(remove)
+  tw:set_atclose(remove)
 
    -- this function will be called once for each packet
-   function tap.packet(pinfo,tvb)
-      local http_response_c = f_http_code() -- Call the function that extracts the field
+  function tap.packet(pinfo,tvb)
+    
+    local http_response_c = f_http_code() -- Call the function that extracts the field
 
-      if(http_response_c ~= nil) then
-		 
-  		  if (http_response_c.value > 199 and http_response_c.value < 300) then
-  			   http_response_positive = http_response_positive + 1
+    if(http_response_c ~= nil) then
+  
+      if (http_response_c.value > 199 and http_response_c.value < 300) then
+        http_response_positive = http_response_positive + 1
+      else if (http_response_c.value > 499 and http_response_c.value < 600) then
+        http_response_negative = http_response_negative + 1
         end
-  		  if (http_response_c.value > 499 and http_response_c.value < 600) then
-  			  http_response_negative = http_response_negative + 1
-		    end    	 
-      end
-   end
+      end     
+    end
+  end
 
    -- this function will be called once every few seconds to update our window
    function tap.draw(t)
-        tw:clear()
-	     tw:append("Total positive responses: " .. http_response_positive .. "\n")
-	     tw:append("Total negative responses: " .. http_response_negative .. "\n")
-       if (http_response_positive ~= 0 and http_response_negative ~= 0) then
-          tw:append("Ratio: " .. (http_response_positive/http_response_negative) .. "\n")
-      end
+      tw:clear()
+      tw:append("Positivi Responses" .. http_response_positive .. "\n")
+      tw:append("Negativi Responses" .. http_response_negative .. "\n")
    end
 
    -- this function will be called whenever a reset is needed
    -- e.g. when reloading the capture file
    function tap.reset()
-    	tw:clear()
-    	http_response = 0
-    	http_response_positive = 0
-    	http_response_negative = 0
+      tw:clear()
+      http_response = 0
+      http_response_positive = 0
+      http_response_negative = 0
    end
 
    -- Ensure that all existing packets are processed.
@@ -72,5 +69,5 @@ local function gr_tap()
 end
 
 -- Menu GR -> Packets
-register_menu("Gruppo9/HTTP response codes", gr_tap, MENU_TOOLS_UNSORTED)
+register_menu("GR/HTTP", gr_tap, MENU_TOOLS_UNSORTED)
 
