@@ -19,60 +19,109 @@ local f_tcp_flags_syn  = Field.new("tcp.flags.syn")
 local f_tcp_flags_ack  = Field.new("tcp.flags.ack")
 
 local function getstring(finfo)
-	 local ok, val = pcall(tostring, finfo)
-	 if not ok then val = "(unknown)" end
-	 return val
+	local ok, val = pcall(tostring, finfo)
+	if not ok then val = "(unknown)" end
+	return val
 end
 
 local function isMulticast(v_ip_dst)
-	if (v_ip_dst ~= nil) then 
-		local ip = tostring(v_ip_dst.value)
-		local o1,o2,o3,o4 = ip:match("(%d%d?%d?)%.(%d%d?%d?)%.(%d%d?%d?)%.(%d%d?%d?)" )
-		local ok1, val1 = pcall(tonumber, o1)
-		local ok2, val2 = pcall(tonumber, o2)
-		local ok3, val3 = pcall(tonumber, o3)
-		local ok4, val4 = pcall(tonumber, o4)
-		if (not (ok1 and ok2 and ok3 and ok4)) then
-			return true
-		end
-		if (tonumber(o1) >= 224 and tonumber(o1) <= 239) then
-		--print(o1,o2,o3,o4)
-		return true
-		end
+
+	if (v_ip_dst == nil) then
+		return
 	end
+
+	local ip = tostring(v_ip_dst.value)
+	local o1,o2,o3,o4 = ip:match("(%d%d?%d?)%.(%d%d?%d?)%.(%d%d?%d?)%.(%d%d?%d?)" )
+	local ok1, val1 = pcall(tonumber, o1)
+	local ok2, val2 = pcall(tonumber, o2)
+	local ok3, val3 = pcall(tonumber, o3)
+	local ok4, val4 = pcall(tonumber, o4)
+
+	if (not (ok1 and ok2 and ok3 and ok4)) then
+		return true
+	end
+	if (val1 >= 224 and val1 <= 239) then
+		return true
+	end
+	-- Also check for the standard local broadcast 192.168.1.255
+	if ( val1 == 192  and  val2 == 168  and  val3 == 1  and  val4 == 255 ) then
+		return true
+	end
+
 	return false
+
 end
+
 local function clientIpFinder(list, new_ip_src, new_ip_dst)
 
-	--dst is multicast
-	--src can be either us (if we send it) or someone else on the network
+	-- If dst is multicast src can be either the client (if he sends
+	-- 	it), or someone else on the network, so we discard the packet
+	--	because it gives us no new information.
 	if (isMulticast(new_ip_dst)) then
 		return nil
 	end
+
 	-- Base case for fist packet
 	if (next(list) == nil) then
 		table.insert(list, new_ip_src.value)
 		table.insert(list, new_ip_dst.value)
-		print(getstring(list[1]) .. " func")
-		print(getstring(list[2]) .. " func")
 		return nil
 	end
 
+	-- If both IPs are the same (in one direction or the other), we don't
+	--	gain any other information about what could be the client's IP.
 	if (   (list[1] == new_ip_src.value and list[2] == new_ip_dst.value)
 		or (list[2] == new_ip_src.value and list[1] == new_ip_dst.value) ) then
-		--print("same ips")
 		return nil
 	end
 
+	-- Since our IP must appear either on src or dst (exlcuding multicast
+	--	packets which we already discarded) there must be at least a field
+	--	containing it. Also, it can't be that both IPs are equal to our
+	--	candidates IP because we already checked that in the previous if.
+	-- So if we find an intersection between either the src IP or the dst
+	--	IP with our candidates IP, then we have found the client IP. 
 	if (list[1] == new_ip_src.value or list[2] == new_ip_src.value) then
 		return new_ip_src.value
 	end
-
 	if (list[1] == new_ip_dst.value or list[2] == new_ip_dst.value) then
 		return new_ip_dst.value
 	end
 
+	-- This statement should never be executed because we already worked
+	--	on all cases. However we should leave it there in case of rare
+	--	edge cases.
 	return nil
+
+end
+
+function desc(a,b) return (a > b) end
+
+function sortHosts(hosts_list)
+
+	-- Array that will contain a distinct host for each element.
+	--	Each element 'a' will contain two elements,
+	--	a[1] = host_name, a[2] = number of ports.
+	local hosts_port_count = {}
+	local index = 1
+
+	for host,ports in pairs(hosts_list) do
+
+		hosts_port_count[index] = {}
+		hosts_port_count[index][1] = host
+		hosts_port_count[index][2] = 0
+
+		for port in pairs(ports) do
+			hosts_port_count[index][2] = hosts_port_count[index][2] + 1
+		end
+
+		index = index + 1
+
+	end
+
+	-- sort the function by the number of ports.
+	table.sort(hosts_port_count, function(x,y) return desc(x[2], y[2]) end)
+	return hosts_port_count
 
 end
 
@@ -87,12 +136,8 @@ local function gr_tap()
 	local clients_udp = {}
 	local servers_udp = {}
 
-	--ip_src:src_port -> ip_dst:dst_port
-
 	local candidate_client_ips_list = {}
 	local client_ip = nil
-	local test = false
-	local test_count = 0
 
 	-- this is our tap
 	local tap = Listener.new();
@@ -120,15 +165,8 @@ local function gr_tap()
 			return 
 		end
 
-		-- @@@debug count
 		if (client_ip == nil) then
 			client_ip = clientIpFinder(candidate_client_ips_list, ip_src, ip_dst)
-		end
-
-		-- @@@debug
-		if (not(test) and client_ip ~= nil) then
-			print (getstring(client_ip) .. "\n")
-			--test = true
 		end
 
 		--Check if it's a tcp packet and contains an IP source (maybe we can't get src information a non-IP datagram)
@@ -149,7 +187,9 @@ local function gr_tap()
 
 			end 
 		end
+		
 		if(src_port ~= nil and dst_port ~= nil) then
+
 			if(hosts_udp[getstring(ip_src.value)] == nil) then
 				hosts_udp[getstring(ip_src.value)] = {}
 			end
@@ -162,14 +202,11 @@ local function gr_tap()
 
 		end
 
-		if (not(test) and client_ip ~= nil) then
-			print (getstring(client_ip) .. "\n")
-			--test = true
-		end
-	 end
+	end
 
-	 -- this function will be called once every few seconds to update our window
+	-- this function will be called once every few seconds to update our window
 	function tap.draw(t)
+		
 		tw:clear()
 		local tot_clients_tcp = 0
 		local tot_servers_tcp = 0
@@ -178,53 +215,81 @@ local function gr_tap()
 		local tot_servers_udp=0
 
 		tw:append("TCP \n")
-		tw:append("Clients: " .. "\n")
+		tw:append("\tClients: " .. "\n")
 		for host,flag in pairs(clients_tcp) do
-				tw:append(getstring(host) .. "\n")
-				if(flag) then
-					tot_clients_tcp = tot_clients_tcp + 1
-				end
+			tw:append("\t\t" .. getstring(host) .. "\n")
+			if(flag) then
+				tot_clients_tcp = tot_clients_tcp + 1
+			end
 		end
 
-		tw:append("Servers: " .. "\n")
+		tw:append("\tServers: " .. "\n")
 		for host,flag in pairs(servers_tcp) do
-			tw:append(getstring(host) .. "\n")
+			tw:append("\t\t" .. getstring(host) .. "\n")
 			if(flag) then
 				tot_servers_tcp = tot_servers_tcp + 1
 			end
 		end
 
-		tw:append("Total clients: " .. tot_clients_tcp .. "\n")
-		tw:append("Total servers: " .. tot_servers_tcp .. "\n")
+		tw:append("\tTotal TCP clients: " .. tot_clients_tcp .. "\n")
+		tw:append("\tTotal TCP servers: " .. tot_servers_tcp .. "\n")
+
+		tw:append("\n")
 
 		tw:append("UDP: \n")
+		local hosts_port_count = sortHosts(hosts_udp)
 
-	 	for host in pairs(hosts_udp) do
-	 		print(getstring(client_ip))
-	 		if (client_ip ~= nil and host == getstring(client_ip)) then
-				for port, check in pairs (hosts_udp[host]) do
-					tw:append("Client " .. getstring(host) .. ":" .. getstring(port) .. "\n")
-					tot_hosts_udp = tot_hosts_udp + 1
-					tot_clients_udp = tot_clients_udp + 1
-				end
-			else
-				for port, check in pairs (hosts_udp[host]) do
-					tw:append("Server " .. getstring(host) .. ":" .. getstring(port) .. "\n")
-					tot_hosts_udp = tot_hosts_udp + 1
-					tot_servers_udp = tot_servers_udp + 1
-				end
+		if (client_ip == nil) then
+			
+			tw:append("\tThe script could not identify the client's IP so the\n")
+			tw:append("\tfollowing hosts can't be labelled as either 'Client' or 'Server'\n")
+
+			tw:append("\t\tHost\tNumber of services\n")
+
+			for index,host in ipairs(hosts_port_count) do
+				tot_hosts_udp = tot_hosts_udp + 1
+				tw:append("\t\t" .. getstring(host[1]) .. "\t" .. getstring(host[2]) .. "\n")
 			end
+
+		else
+
+			-- While printing the clients, save the servers for the second
+			--	print, to avoid going through the loop and the if again.
+			local servers_port_count = {}
+
+			tw:append("\tClients: " .. "\n")
+			tw:append("\t\tHost\tNumber of services\n")
+			for index,host in ipairs(hosts_port_count) do
+
+				tot_hosts_udp = tot_hosts_udp + 1
+
+				if (host[1] == getstring(client_ip)) then
+					tot_clients_udp = tot_clients_udp + 1
+					tw:append("\t\t" .. getstring(host[1]) .. "\t" .. getstring(host[2]) .. "\n")
+				else
+					tot_servers_udp = tot_servers_udp + 1
+					servers_port_count[tot_servers_udp] = host
+				end
+
+			end
+
+			tw:append("\tServers: " .. "\n")
+			tw:append("\t\tHost\tNumber of services\n")
+			for index,server in ipairs(servers_port_count) do
+				tw:append("\t\t" .. getstring(server[1]) .. "\t" .. getstring(server[2]) .. "\n")
+			end
+
+			tw:append("\tTotal UDP clients: " .. tot_clients_udp .. "\n")
+			tw:append("\tTotal UDP servers: " .. tot_servers_udp .. "\n")
+
 		end
 
-		tw:append("Total UDP hosts: " .. tot_hosts_udp .. "\n")
-		tw:append("Total Server hosts: " .. tot_servers_udp .. "\n")
-		tw:append("Total Client hosts: " .. tot_clients_udp .. "\n")
-	 end
+	end
 
 	-- this function will be called whenever a reset is needed
 	-- e.g. when reloading the capture file
 	function tap.reset()
-		--tw:clear()
+		tw:clear()
 		clients_tcp = {}
 		servers_tcp = {}
 		hosts_udp = {}
@@ -232,9 +297,6 @@ local function gr_tap()
 		servers_udp = {}
 		candidate_client_ips_list = {}
 		client_ip = nil
-
-		---@@@debug
-		test_count = 0
 	end
 
 	-- Ensure that all existing packets are processed.
