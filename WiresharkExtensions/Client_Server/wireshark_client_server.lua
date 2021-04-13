@@ -28,6 +28,13 @@ local function isMulticast(v_ip_dst)
 	if (v_ip_dst ~= nil) then 
 		local ip = tostring(v_ip_dst.value)
 		local o1,o2,o3,o4 = ip:match("(%d%d?%d?)%.(%d%d?%d?)%.(%d%d?%d?)%.(%d%d?%d?)" )
+		local ok1, val1 = pcall(tonumber, o1)
+		local ok2, val2 = pcall(tonumber, o2)
+		local ok3, val3 = pcall(tonumber, o3)
+		local ok4, val4 = pcall(tonumber, o4)
+		if (not (ok1 and ok2 and ok3 and ok4)) then
+			return true
+		end
 		if (tonumber(o1) >= 224 and tonumber(o1) <= 239) then
 		--print(o1,o2,o3,o4)
 		return true
