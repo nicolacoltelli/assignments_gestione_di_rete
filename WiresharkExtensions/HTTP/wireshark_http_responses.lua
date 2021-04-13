@@ -7,73 +7,69 @@ local f_http_code = Field.new("http.response.code")
 local f_ip_src = Field.new("ip.src")
 
 local function getstring(finfo)
-  local ok, val = pcall(tostring, finfo)
-  if not ok then val = "(unknown)" end
-    return val
+	local ok, val = pcall(tostring, finfo)
+	if not ok then val = "(unknown)" end
+	return val
 end
 
 local function gr_tap()
 	-- Declare the window we will use
 	local tw = TextWindow.new("HTTP Good/Bad responses ratio")
 
-	-- This will contain a hash of counters of appearances of a certain address
-	local all_hosts={}
 	local http_response_positive = {}
 	local http_response_negative = {}
 
 	-- this is our tap
 	local tap = Listener.new();
 
-  	local function remove()
-    	-- this way we remove the listener that otherwise will remain running indefinitely
-    	tap:remove();
-  	end
+	local function remove()
+		-- this way we remove the listener that otherwise will remain running indefinitely
+		tap:remove();
+	end
 
-   	-- we tell the window to call the remove() function when closed
-  	tw:set_atclose(remove)
+	-- we tell the window to call the remove() function when closed
+	tw:set_atclose(remove)
 
-   	-- this function will be called once for each packet
-  	function tap.packet(pinfo,tvb)
-    
-    	-- Call the function that extracts the field
-    	local http_response_code = f_http_code()
-    	local ip_src =f_ip_src()
+	-- this function will be called once for each packet
+	function tap.packet(pinfo,tvb)
+	
+		-- Call the function that extracts the field
+		local http_response_code = f_http_code()
+		local ip_src =f_ip_src()
 
-    	--Check if there is an HTTP response code and an IPv4
-    	if(http_response_code ~= nil and ip_src ~= nil) then
-  			local old_value
+		--Check if there is an HTTP response code and an IPv4
+		if(http_response_code ~= nil and ip_src ~= nil) then
 
-  			--If the response code is between 199 and 300 then it's a positive response
-	     	if (http_response_code.value > 199 and http_response_code.value < 300) then
-	      		old_value= http_response_positive[getstring(ip_src.value)] or 0
-				http_response_positive[getstring(ip_src.value)] = old_value + 1
+			local ip_src_string = getstring(ip_src.value)
 
-				--Add the ip to hosts contacted
-		        if (all_hosts[getstring(ip_src.value)] == nil) then
-					all_hosts[getstring(ip_src.value)]= true
-				end  
+			-- The check could be done on either dictionary since
+			--	..positive[ip_src_string] == nil <=> ..negative[ip_src_string] == nil 
+			if (http_response_positive[ip_src_string] == nil) then
+				http_response_positive[ip_src_string] = 0
+				http_response_negative[ip_src_string] = 0
+			end 
 
+			--If the response code is between 199 and 300 then it's a positive response
+			if (http_response_code.value > 199 and http_response_code.value < 300) then
+				http_response_positive[ip_src_string] = http_response_positive[ip_src_string] + 1
+			
 			--Else if the response code is between 499 and 600 then it's a bad response
 			else if (http_response_code.value > 499 and http_response_code.value < 600) then
-	        	old_value= http_response_negative[getstring(ip_src.value)] or 0
-				http_response_negative[getstring(ip_src.value)] = old_value + 1
+				http_response_negative[ip_src_string] = http_response_negative[ip_src_string] + 1
+			
+			end
 
-				--The code is repeated otherwise requests with 4xx errors would be inserted in all_hosts
-				--Add the ip to hosts contacted
-		        if (all_hosts[getstring(ip_src.value)] == nil) then
-					all_hosts[getstring(ip_src.value)]= true
-				end 
-	        end
-  		end
-  	end
+		end
 
-   	-- this function will be called once every few seconds to update our window
+	end
+
+	-- this function will be called once every few seconds to update our window
 	function tap.draw(t)
 		tw:clear()
-      	for host,present in pairs(all_hosts) do
-      		--The host could be not present in one of the 2 other dictionaries
-      		local num_positive = http_response_positive[host] or 0
-			local num_negative = http_response_negative[host] or 0
+		for host in pairs(http_response_positive) do
+
+			local num_positive = http_response_positive[host]
+			local num_negative = http_response_negative[host]
 
 			if (num_positive>0 and num_negative>0) then
 				tw:append(host .. ":\t" .. (num_positive/num_negative) .. "\n");
@@ -84,21 +80,22 @@ local function gr_tap()
 			if (num_positive>0 and num_negative==0) then
 				tw:append(host .. ":\t" .. "No bad responses\n");
 			end
+
 		end
 	end
 end
 
-   -- this function will be called whenever a reset is needed
-   -- e.g. when reloading the capture file
+	-- this function will be called whenever a reset is needed
+	-- e.g. when reloading the capture file
 	function tap.reset()
 		tw:clear()
-    	all_hosts={}
+		all_hosts={}
 		http_response_positive = {}
 		http_response_negative = {}
 	end
 
 	-- Ensure that all existing packets are processed.
-  	retap_packets()
+	retap_packets()
 end
 
 -- Menu GR -> Packets
