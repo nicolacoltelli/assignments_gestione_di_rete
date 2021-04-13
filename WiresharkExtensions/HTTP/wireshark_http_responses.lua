@@ -54,7 +54,7 @@ local function gr_tap()
 				http_response_positive[ip_src_string] = http_response_positive[ip_src_string] + 1
 			
 			--Else if the response code is between 499 and 600 then it's a bad response
-			else if (http_response_code.value > 499 and http_response_code.value < 600) then
+			elseif (http_response_code.value > 499 and http_response_code.value < 600) then
 				http_response_negative[ip_src_string] = http_response_negative[ip_src_string] + 1
 			
 			end
@@ -83,19 +83,18 @@ local function gr_tap()
 
 		end
 	end
-end
 
 	-- this function will be called whenever a reset is needed
 	-- e.g. when reloading the capture file
 	function tap.reset()
 		tw:clear()
-		all_hosts={}
 		http_response_positive = {}
 		http_response_negative = {}
 	end
 
 	-- Ensure that all existing packets are processed.
 	retap_packets()
+	
 end
 
 -- Menu GR -> Packets
