@@ -32,6 +32,11 @@ local function isMulticast(v_ip_dst)
 
 	local ip = tostring(v_ip_dst.value)
 	local o1,o2,o3,o4 = ip:match("(%d%d?%d?)%.(%d%d?%d?)%.(%d%d?%d?)%.(%d%d?%d?)" )
+
+	if (o1 == nil or o2 == nil or o3 == nil or o4 == nil) then
+		return true
+	end
+
 	local ok1, val1 = pcall(tonumber, o1)
 	local ok2, val2 = pcall(tonumber, o2)
 	local ok3, val3 = pcall(tonumber, o3)
